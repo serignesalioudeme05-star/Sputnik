@@ -12,7 +12,7 @@ app.use(express.json({ limit: "5mb" }));
 const PORT = process.env.PORT || 3000;
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODEL = "gemaler3.8-flash";
 
 // ---- Vérification de santé (utile pour Render/Railway) ----
 app.get("/", (req, res) => {
