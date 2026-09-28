@@ -10,9 +10,9 @@ app.use(cors());
 app.use(express.json({ limit: "5mb" }));
 
 const PORT = process.env.PORT || 3000;
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
-const CLAUDE_MODEL = "claude-sonnet-5";
+const GEMINI_MODEL = "gemini-2.5-flash";
 
 // ---- Vérification de santé (utile pour Render/Railway) ----
 app.get("/", (req, res) => {
@@ -22,40 +22,42 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", service: "sputnik-server" });
 });
 
-// ---- Fonction commune : appelle Claude (texte ou code) ----
+// ---- Fonction commune : appelle Gemini (texte ou code) ----
 async function askClaude({ systemPrompt, history, message }) {
-  if (!ANTHROPIC_KEY) {
-    throw new Error("ANTHROPIC_API_KEY manquante dans le fichier .env");
+  if (!GEMINI_KEY) {
+    throw new Error("GEMINI_API_KEY manquante");
   }
 
-  const messages = [
-    ...(history || []).map((m) => ({ role: m.role, content: m.content })),
-    { role: "user", content: message },
+  const contents = [
+    ...(history || []).map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    })),
+    { role: "user", parts: [{ text: message }] },
   ];
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": ANTHROPIC_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: CLAUDE_MODEL,
-      max_tokens: 1500,
-      system: systemPrompt,
-      messages,
-    }),
-  });
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-goog-api-key": GEMINI_KEY,
+      },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents,
+      }),
+    }
+  );
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Erreur API Anthropic (${response.status}): ${errText}`);
+    throw new Error(`Erreur API Gemini (${response.status}): ${errText}`);
   }
 
   const data = await response.json();
-  const textBlock = data.content.find((b) => b.type === "text");
-  return textBlock ? textBlock.text : "";
+  return data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
 }
 
 // ---- Onglet TEXTE ----
